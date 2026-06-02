@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// Proxy to Open Food Facts (free, no API key). We normalise everything to
+// Proxy to Open Food Facts. We use the Search-a-licious API
+// (search.openfoodfacts.org) — the legacy /cgi/search.pl endpoint is heavily
+// rate-limited and returns 503 for common terms. Everything is normalised to
 // "per 100 g" so logging is predictable — log qty 1.5 to mean 150 g.
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -10,14 +12,11 @@ export async function GET(request) {
   if (!q) return NextResponse.json([]);
 
   const url =
-    "https://world.openfoodfacts.org/cgi/search.pl?" +
+    "https://search.openfoodfacts.org/search?" +
     new URLSearchParams({
-      search_terms: q,
-      search_simple: "1",
-      action: "process",
-      json: "1",
+      q,
       page_size: "20",
-      fields: "product_name,brands,nutriments,serving_size,image_small_url",
+      fields: "product_name,brands,nutriments,image_url",
     }).toString();
 
   let data;
@@ -26,20 +25,21 @@ export async function GET(request) {
       headers: { "User-Agent": "GymTracker/1.0 (personal use)" },
       signal: AbortSignal.timeout(9000),
     });
-    if (!res.ok) throw new Error("upstream");
+    if (!res.ok) throw new Error("upstream " + res.status);
     data = await res.json();
   } catch {
     return NextResponse.json({ error: "Food search is unavailable right now" }, { status: 502 });
   }
 
-  const results = (data.products || [])
+  const results = (data.hits || [])
     .map((p) => {
       const n = p.nutriments || {};
       const kcal = Number(n["energy-kcal_100g"]) || 0;
       const protein = Number(n["proteins_100g"]) || 0;
       const carbs = Number(n["carbohydrates_100g"]) || 0;
       const fat = Number(n["fat_100g"]) || 0;
-      const name = [p.product_name, p.brands ? `(${p.brands})` : ""].join(" ").trim();
+      const brand = Array.isArray(p.brands) ? p.brands[0] : p.brands;
+      const name = [p.product_name, brand ? `(${brand})` : ""].join(" ").trim();
       return {
         name: name.slice(0, 80),
         serving: "100 g",
@@ -47,7 +47,7 @@ export async function GET(request) {
         protein: Math.round(protein * 10) / 10,
         carbs: Math.round(carbs * 10) / 10,
         fat: Math.round(fat * 10) / 10,
-        image: p.image_small_url || null,
+        image: p.image_url || null,
         source: "off",
       };
     })
