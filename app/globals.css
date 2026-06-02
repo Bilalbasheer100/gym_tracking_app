@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: #0a0a0c;
+  color: #f4f4f6;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Respect iOS safe areas so the bottom nav clears the home indicator. */
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@layer components {
+  .card {
+    @apply bg-surface border border-line rounded-2xl;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold
+      px-4 py-2.5 text-sm transition active:scale-[0.97] select-none;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-white hover:opacity-90;
+  }
+  .btn-ghost {
+    @apply btn bg-surface2 text-white/90 hover:bg-line;
+  }
+  .input {
+    @apply w-full bg-surface2 border border-line rounded-xl px-3.5 py-3 text-base
+      outline-none focus:border-accent placeholder:text-muted;
+  }
+  .label {
+    @apply text-xs font-medium text-muted mb-1.5 block;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium
+      bg-surface2 border border-line active:scale-95 transition;
+  }
+}
+
+/* Hide number input spinners for a cleaner look */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
