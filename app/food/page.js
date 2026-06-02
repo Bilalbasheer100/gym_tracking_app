@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import DateNav from "@/components/DateNav";
 import MacroBar from "@/components/MacroBar";
 import { api, round } from "@/lib/api";
@@ -201,41 +201,68 @@ function LibraryRow({ food, onAdd, onFav, onDelete }) {
   );
 }
 
-/* ---------- Search (Open Food Facts) ---------- */
+/* ---------- Search (Open Food Facts) — live as you type ---------- */
 function SearchTab({ onAdd }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
+  const seq = useRef(0); // guards against out-of-order responses
 
-  async function run(e) {
-    e?.preventDefault();
-    if (!q.trim()) return;
-    setLoading(true);
-    setMsg("");
-    try {
-      const r = await api.get(`/api/search?q=${encodeURIComponent(q)}`);
-      setResults(r);
-      if (r.length === 0) setMsg("No matches — try a simpler term, or add it via Custom.");
-    } catch (e) {
-      setMsg(e.message);
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) {
+      setResults([]);
+      setMsg("");
+      setLoading(false);
+      return;
     }
-    setLoading(false);
-  }
+    const id = ++seq.current;
+    setLoading(true);
+    // Debounce: wait until typing pauses before calling the API.
+    const timer = setTimeout(async () => {
+      try {
+        const r = await api.get(`/api/search?q=${encodeURIComponent(term)}`);
+        if (id !== seq.current) return; // a newer keystroke already fired
+        setResults(r);
+        setMsg(r.length === 0 ? "No matches — try a simpler term, or add it via Custom." : "");
+      } catch (e) {
+        if (id !== seq.current) return;
+        setResults([]);
+        setMsg(e.message);
+      } finally {
+        if (id === seq.current) setLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [q]);
 
   return (
     <div className="space-y-3">
-      <form onSubmit={run} className="flex gap-2">
+      <div className="relative">
         <input
-          className="input"
-          placeholder="Search foods (e.g. banana, greek yogurt)…"
+          className="input pr-9"
+          placeholder="Start typing a food… (e.g. banana)"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          autoFocus
         />
-        <button className="btn-primary" disabled={loading}>
-          {loading ? "…" : "Go"}
-        </button>
-      </form>
+        {loading && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 animate-pulse text-muted">
+            ⋯
+          </span>
+        )}
+        {!loading && q && (
+          <button
+            type="button"
+            onClick={() => setQ("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted"
+            aria-label="Clear"
+          >
+            ✕
+          </button>
+        )}
+      </div>
       <p className="text-[11px] text-muted">Values are per 100 g. Enter grams to log.</p>
       {msg && <p className="text-sm text-muted">{msg}</p>}
       <ul className="space-y-2">
